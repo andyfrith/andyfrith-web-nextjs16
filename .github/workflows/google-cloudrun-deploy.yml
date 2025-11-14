@@ -1,0 +1,51 @@
+name: Google Cloud Run Deploy
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: "andyfrith-web-nextjs16"
+  REGION: "europe-west1"
+  SERVICE: "andyfrith-web-nextjs16"
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: "read"
+      id-token: "write"
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "node_version=$(cat .github/nodejs.version)" >> $GITHUB_ENV
+      - name: "use node ${{ env.node_version }}"
+        uses: actions/setup-node@v3
+        with:
+          node-version: "${{ env.node_version }}"
+
+      - name: "Install pnpm & dependencies"
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: |
+            - recursive: true
+            - args: [--frozen-lockfile]
+
+      - name: Build Next.js Application
+        run: pnpm run build
+
+      - name: "Google Auth"
+        uses: "google-github-actions/auth@v3"
+        with:
+          credentials_json: "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}"
+
+      - name: "Deploy to Cloud Run"
+        uses: "google-github-actions/deploy-cloudrun@33553064113a37d688aa6937bacbdc481580be17" # google-github-actions/deploy-cloudrun@v2
+        with:
+          service: "${{ env.SERVICE }}"
+          region: "${{ env.REGION }}"
+          source: "./"
+
+      - name: "Show output"
+        run: |-
+          echo ${{ steps.deploy.outputs.url }}
